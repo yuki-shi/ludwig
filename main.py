@@ -5,14 +5,21 @@ import pandas as pd
 import datetime as dt
 import sqlite3
 import os
+import re
 
 def get_gupy_dataframe(keyword: str) -> pd.DataFrame:
     # Get gupy job listings as a dataframe
     jobs = get_job_listings(keyword)
-    # Check if the list is empty 
+    df = format_to_dataframe(jobs)
+
+    # Check if the dataframe is empty
     try:
-        df = format_to_dataframe(jobs)
-    except AttributeError:
+        # Add data source and queried keyword as attributes
+        df['source'] = 'gupy'
+        df['keyword'] = keyword
+
+    except TypeError:
+        print('No jobs on Gupy')
         return
 
     return df
@@ -21,29 +28,32 @@ def get_indeed_dataframe(keyword: str) -> pd.DataFrame:
     # Get indeed job listings as a dict
     induki = Induki(keyword)
     jobs = induki.scrape_page_source()
+    df = pd.DataFrame([jobs]).transpose().reset_index() 
 
     # Check if the dict is empty
     try:
-        df = pd.DataFrame([jobs]).transpose().reset_index() 
-    except AttributeError:
-        return
+        # Normalize column names
+        df = df.rename(columns={0: 'url', 'index': 'job'})
+        # Add today's date as an attribute to Indeed's dataframe
+        df['date'] = dt.datetime.today().strftime('%d/%m/%Y')
+        # Add data source and queried keyword as attribute
+        df['source'] = 'indeed'
+        df['keyword'] = keyword
 
-    df = df.rename(columns={0: 'url', 'index': 'job'})
-    # Add today's date as an attribute to Indeed's dataframe
-    df['date'] = dt.datetime.today().strftime('%d/%m/%Y')
+    except TypeError:
+        print('No jobs on Indeed')
+        return
 
     return df
 
 def concat_dataframes(df_gupy: pd.DataFrame, df_indeed: pd.DataFrame) -> pd.DataFrame:
-    # Add each data source as an attribute
-    for df, source in zip([df_gupy, df_indeed], ['gupy', 'indeed']):
-        df['source'] = source
+    # Check if the dataframes are empty
+    if df_gupy is None:
+        return df_indeed
+    elif df_indeed is None:
+        return df_gupy
 
-    # Add queried keyword as an attribute
-    for df in [df_gupy, df_indeed]:
-        df['keyword'] = keyword
-
-    # Outer join on both dataframes 
+    # Outer join on both dataframes row-wise 
     df_final = pd.concat([df_gupy, df_indeed], axis=0)
     df_final = df_final.reset_index(drop=True)
 
@@ -78,10 +88,10 @@ def show_db(conn) -> None:
     return
 
 
-
 if __name__ == '__main__':
     
     # Maybe store the keywords into a file, so we won't need to run a shellscript everyday
+    # TODO: if only one keyword, there is no need to split
     KEYWORDS = [x.split(',') for x in os.getenv('KEYWORDS').split(' ')]
     if KEYWORDS is None:
         raise TypeError('No KEYWORDS environmental variable found')
