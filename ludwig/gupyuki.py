@@ -50,6 +50,6 @@ def format_to_dataframe(job_list: list[str, str, str]) -> pd.DataFrame:
     today = dt.datetime.today().strftime('%d/%m/%Y')
 
     if not df['date'].str.contains(today).any():
-        sys.exit('No new jobs today!')
+        return
 
     return df.loc[df['date'] == today, :]

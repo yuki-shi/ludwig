@@ -1,6 +1,5 @@
 import argparse
-from gupyuki import get_job_listings, format_to_dataframe
-from induki import Induki
+from . import gupyuki, induki 
 import pandas as pd
 import datetime as dt
 import sqlite3
@@ -9,8 +8,8 @@ import re
 
 def get_gupy_dataframe(keyword: str) -> pd.DataFrame:
     # Get gupy job listings as a dataframe
-    jobs = get_job_listings(keyword)
-    df = format_to_dataframe(jobs)
+    jobs = gupyuki.get_job_listings(keyword)
+    df = gupyuki.format_to_dataframe(jobs)
 
     # Check if the dataframe is empty
     try:
@@ -19,15 +18,14 @@ def get_gupy_dataframe(keyword: str) -> pd.DataFrame:
         df['keyword'] = keyword
 
     except TypeError:
-        print('No jobs on Gupy')
         return
 
     return df
 
 def get_indeed_dataframe(keyword: str) -> pd.DataFrame:
     # Get indeed job listings as a dict
-    induki = Induki(keyword)
-    jobs = induki.scrape_page_source()
+    indeed = induki.Induki(keyword)
+    jobs = indeed.scrape_page_source()
     df = pd.DataFrame([jobs]).transpose().reset_index() 
 
     # Check if the dict is empty
@@ -41,7 +39,6 @@ def get_indeed_dataframe(keyword: str) -> pd.DataFrame:
         df['keyword'] = keyword
 
     except TypeError:
-        print('No jobs on Indeed')
         return
 
     return df
@@ -86,21 +83,3 @@ def show_db(conn) -> None:
         print(row)
 
     return
-
-
-if __name__ == '__main__':
-    
-    # Maybe store the keywords into a file, so we won't need to run a shellscript everyday
-    # TODO: if only one keyword, there is no need to split
-    KEYWORDS = [x.split(',') for x in os.getenv('KEYWORDS').split(' ')]
-    if KEYWORDS is None:
-        raise TypeError('No KEYWORDS environmental variable found')
-
-    # For testing
-    keyword = KEYWORDS[0][1]
-
-    df_gupy = get_gupy_dataframe(keyword)
-    df_indeed = get_indeed_dataframe(keyword)
-    df_agg = concat_dataframes(df_gupy, df_indeed)
-    update_to_db(df_agg)
-    show_db()
